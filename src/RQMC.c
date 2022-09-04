@@ -2,7 +2,7 @@
 #include <time.h>
 #include <math.h>
 
-static double rational(double x)
+static inline double rational(const double x)
 {
 	return x - floor(x);
 }
@@ -10,8 +10,7 @@ static double rational(double x)
 static double kronecher_low_discrepancy_generator(const size_t n)
 {
 	const double golden_ratio = (1 + sqrt(5)) / 2;
-	const double number = n * golden_ratio;
-	return rational(number);
+	return n * golden_ratio;
 }
 
 static double uniform_random_generator()
@@ -19,9 +18,9 @@ static double uniform_random_generator()
 	return (double)rand() / RAND_MAX;
 }
 
-static double rotation(const double uniform_noise, const double base)
+static inline double rotation(const double uniform_noise, const double base)
 {
-	return rational(uniform_noise + base);
+	return uniform_noise + base;
 }
 
 double RQMC_integral(RQMC_integrable_function f, const size_t discrepancy_strength, const size_t bootstrap_factor)
@@ -32,9 +31,10 @@ double RQMC_integral(RQMC_integrable_function f, const size_t discrepancy_streng
 	{
 		integral = 0.0;
 		for(size_t j = 0; j < discrepancy_strength; j++)
-		{
-			integral += f(rotation(uniform_random_generator(), kronecher_low_discrepancy_generator(j)));
-		}
+			integral += f(rational(rotation(
+				uniform_random_generator(),
+				kronecher_low_discrepancy_generator(j)
+			)));
 		estimate += integral / discrepancy_strength;
 	}
 	return estimate / bootstrap_factor;
@@ -79,7 +79,7 @@ static void test_statistic_kronecher_uniform_comparison()
 	for(size_t j = 0; j < max_sample_counter; j++)
 	{
 		double uniform_measure = uniform_random_generator();
-		double kronecher_measure = kronecher_low_discrepancy_generator(j);
+		double kronecher_measure = rational(kronecher_low_discrepancy_generator(j));
 
 		for(size_t i = 0; i < split_count; i++) {
 			if(uniform_measure >= (double)i/split_count && uniform_measure < ((double)i+1)/split_count)
@@ -120,7 +120,7 @@ static void test_cesaro_average()
 		const size_t discrepancy_limit = 100000;
 		integral_estimate = 0.0;
 		for(size_t i = 0; i < discrepancy_limit; i++)
-			integral_estimate += test_cesaro_average_f(kronecher_low_discrepancy_generator(i));
+			integral_estimate += test_cesaro_average_f(rational(kronecher_low_discrepancy_generator(i)));
 		integral_estimate /= discrepancy_limit;
 		printf("\n\tQuasi-Monte-Carlo: %f", __RQMC__TEST__estimate(integral_estimate));
 	}
