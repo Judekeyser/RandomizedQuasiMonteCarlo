@@ -65,31 +65,35 @@ static void test_statistic_kronecher_uniform_comparison()
 {
 	printf("Basic statistic comparison between Uniform and Kronecher.\n");
 	printf("---------------------------------------------------------\n");
-	size_t max_int_counter = 10;
+	size_t split_count = 10;
 	size_t max_sample_counter = 1000;
-	for(size_t int_counter; int_counter < max_int_counter; int_counter++)
+
+	size_t uniform_counters[split_count];
+	size_t kronecher_counters[split_count];
+
+	for(size_t i = 0; i < split_count; i++) {
+		uniform_counters[i] = 0.0;
+		kronecher_counters[i] = 0.0;
+	}
+
+	for(size_t j = 0; j < max_sample_counter; j++)
 	{
-		struct Interval interval = {
-			.min = (double)int_counter / max_int_counter,
-			.max = (double)(int_counter+1)/max_int_counter,
-			.kronecher_count = 0,
-			.uniform_count = 0
-		};
+		double uniform_measure = uniform_random_generator();
+		double kronecher_measure = kronecher_low_discrepancy_generator(j);
 
-		double measure;
-		for(int j = 0; j < max_sample_counter; j++) {
-			measure = uniform_random_generator();
-			if(measure >= interval.min && measure < interval.max)
-				interval.uniform_count += 1;
-			measure = kronecher_low_discrepancy_generator(j);
-			if(measure >= interval.min && measure < interval.max)
-				interval.kronecher_count += 1;
+		for(size_t i = 0; i < split_count; i++) {
+			if(uniform_measure >= (double)i/split_count && uniform_measure < ((double)i+1)/split_count)
+				uniform_counters[i] += 1;
+			if(kronecher_measure >= (double)i/split_count && kronecher_measure < ((double)i+1)/split_count)
+				kronecher_counters[i] += 1;
 		}
+	}
 
-		printf("\nInterval [%f, %f):\n\tUniform: %d / %d\n\tKronecher: %d / %d\n",
-			interval.min, interval.max,
-			(int)interval.uniform_count, (int)max_sample_counter,
-			(int)interval.kronecher_count, (int)max_sample_counter
+	for(size_t i = 0; i < split_count; i++) {
+		printf("\nInterval [%f, %f):\n\tUniform: %d\n\tKronecher: %d\n",
+			(double)i/split_count, ((double)i+1)/split_count,
+			(int)uniform_counters[i],
+			(int)kronecher_counters[i]
 		);
 	}
 	printf("---------------------------------------------------------\n");
