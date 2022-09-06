@@ -4,11 +4,16 @@
 #include <stdlib.h>
 
 typedef double (RQMC_integrable_function)(double);
+struct RQMC_IntegralResult
+{
+	const double estimate;
+	const double error;
+};
 
 /*
 Random Quasi Monte-Carlo integral
 */
-double RQMC_integral(
+struct RQMC_IntegralResult RQMC_integral(
 
     /* The function to integrate on [0, 1) */
     RQMC_integrable_function f,

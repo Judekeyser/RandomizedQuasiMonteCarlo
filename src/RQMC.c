@@ -4,13 +4,13 @@
 
 static inline double rational(const double x)
 {
-	return x - floor(x);
+	return fmod(x, 1.0);
 }
 
 static double kronecher_low_discrepancy_generator(const size_t n)
 {
 	const double golden_ratio = (1 + sqrt(5)) / 2;
-	return (n+1) * golden_ratio;
+	return n * golden_ratio;
 }
 
 static double uniform_random_generator()
@@ -20,29 +20,48 @@ static double uniform_random_generator()
 
 static inline double rotation(const double uniform_noise, const double base)
 {
-
-	double shift = rational(uniform_noise + base);
-	return shift;
+	return rational(uniform_noise + base);
 }
 
-double RQMC_integral(RQMC_integrable_function f, const size_t discrepancy_strength, const size_t bootstrap_factor)
-{
-	double estimate = 0.0;
-	double integral;
-	for(size_t i = 0; i < (bootstrap_factor/2); i++)
+struct RQMC_IntegralResult RQMC_integral(
+	RQMC_integrable_function f,
+	const size_t discrepancy_strength,
+	const size_t bootstrap_factor
+) {
+	double __average = 0.0;
+	double __sum_of_squares = 0.0;
+	double __integral;
+
+	for(size_t i = 1; i <= (bootstrap_factor); i++)
 	{
-		integral = 0.0;
-		double random_number = uniform_random_generator();
-		for(size_t j = 0; j < discrepancy_strength; j++) {
-			double point = rotation(
-				random_number,
-				kronecher_low_discrepancy_generator(j)
-			);
-			integral += f(point) + f(1.0 - point);
+		/*
+			Computing an integral using randomly shifted low-discrepancy sequence
+		*/ {
+			__integral = 0.0;
+			const double random_number = uniform_random_generator();
+			for(size_t j = 0; j < discrepancy_strength; j++) {
+				const double point = rotation(
+					random_number,
+					kronecher_low_discrepancy_generator(j)
+				);
+				__integral += f(point);
+			}
+			__integral /= discrepancy_strength;
 		}
-		estimate += integral / discrepancy_strength;
+		/*
+			Updating average and sum of squares
+		*/ {
+			const double previous_average = __average;
+			__average += (__integral - __average) / i;
+			__sum_of_squares += (__integral - previous_average)*(__integral - __average);
+		}
 	}
-	return estimate / bootstrap_factor;
+	struct RQMC_IntegralResult integration =
+	{
+		.estimate=__average,
+		.error=__sum_of_squares/(bootstrap_factor - 1)
+	};
+	return integration;
 }
 
 /**
@@ -132,22 +151,25 @@ static void test_cesaro_average()
 	{
 		const size_t discrepancy_limit = 100000;
 		integral_estimate = 0.0;
-		for(size_t i = 0; i < discrepancy_limit; i++)
+		for(size_t i = 1; i <= discrepancy_limit; i++)
 			integral_estimate += test_cesaro_average_f(rational(kronecher_low_discrepancy_generator(i)));
 		integral_estimate /= discrepancy_limit;
 		printf("\n\tQuasi-Monte-Carlo: %f", __RQMC__TEST__estimate(integral_estimate));
 	}
 
 	{
-		integral_estimate = RQMC_integral(test_cesaro_average_f, 50000, 20);
-		printf("\n\tRandomized Quasi-Monte-Carlo: %f", __RQMC__TEST__estimate(integral_estimate));
+		struct RQMC_IntegralResult integ = RQMC_integral(test_cesaro_average_f, 20000, 30);
+		printf("\n\tRandomized Quasi-Monte-Carlo: %f +/- %f",
+			__RQMC__TEST__estimate(integ.estimate),
+			sqrt(integ.error)
+		);
 	}
 #undef __RQMC__TEST__estimate
 }
 
 int main()
 {
-	test_statistic_kronecher_uniform_comparison();
+	//test_statistic_kronecher_uniform_comparison();
 	test_cesaro_average();
 
 	printf("\n-----------------------\n\n");
