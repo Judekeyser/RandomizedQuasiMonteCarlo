@@ -10,7 +10,7 @@ static inline double rational(const double x)
 static double kronecher_low_discrepancy_generator(const size_t n)
 {
 	const double golden_ratio = (1 + sqrt(5)) / 2;
-	return n * golden_ratio;
+	return (n+1) * golden_ratio;
 }
 
 static double uniform_random_generator()
@@ -20,21 +20,26 @@ static double uniform_random_generator()
 
 static inline double rotation(const double uniform_noise, const double base)
 {
-	return uniform_noise + base;
+
+	double shift = rational(uniform_noise + base);
+	return shift;
 }
 
 double RQMC_integral(RQMC_integrable_function f, const size_t discrepancy_strength, const size_t bootstrap_factor)
 {
 	double estimate = 0.0;
 	double integral;
-	for(size_t i = 0; i < bootstrap_factor; i++)
+	for(size_t i = 0; i < (bootstrap_factor/2); i++)
 	{
 		integral = 0.0;
-		for(size_t j = 0; j < discrepancy_strength; j++)
-			integral += f(rational(rotation(
-				uniform_random_generator(),
+		double random_number = uniform_random_generator();
+		for(size_t j = 0; j < discrepancy_strength; j++) {
+			double point = rotation(
+				random_number,
 				kronecher_low_discrepancy_generator(j)
-			)));
+			);
+			integral += f(point) + f(1.0 - point);
+		}
 		estimate += integral / discrepancy_strength;
 	}
 	return estimate / bootstrap_factor;
@@ -99,14 +104,22 @@ static void test_statistic_kronecher_uniform_comparison()
 	printf("---------------------------------------------------------\n");
 }
 
-static double test_cesaro_average_f(double x) { return x+1-sqrt(x)/2; }
+static double test_cesaro_average_f(double x) { return sin(1.0/x)+1-sqrt(x)/2+1.0/(x+1); }
 static void test_cesaro_average()
 {
-#define __RQMC__TEST__estimate(x) ((x > 1.1777777777777 ? 1 : -1)*(x - 1.1777777777777)/1.1777777777777)
-	printf("Integral of (x+1) over [0,1):");
+#define __RQMC__TEST__estimate(x) x
+	printf("Integral of sin(x)+1-sqrt(x)/2+1/(1+x) over [0,1):");
 	double integral_estimate;
 
 
+	{
+		double integral_sin = 0.5040670619069283719898561177411482296249850282126391708714331675;
+		double integral_1 = 1.0;
+		double integral_sqrt = 2.0/3 * pow(1.0, 3.0/2);
+		double integral_ratio = log(2);
+		double integral = integral_sin + integral_1 - 0.5 * integral_sqrt + integral_ratio;
+		printf("\n\tCorrect value: %f", __RQMC__TEST__estimate(integral));
+	}
 	{
 		const size_t discrepancy_limit = 100000;
 		integral_estimate = 0.0;
@@ -126,7 +139,7 @@ static void test_cesaro_average()
 	}
 
 	{
-		integral_estimate = RQMC_integral(test_cesaro_average_f, 5000, 20);
+		integral_estimate = RQMC_integral(test_cesaro_average_f, 50000, 20);
 		printf("\n\tRandomized Quasi-Monte-Carlo: %f", __RQMC__TEST__estimate(integral_estimate));
 	}
 #undef __RQMC__TEST__estimate
@@ -136,6 +149,8 @@ int main()
 {
 	test_statistic_kronecher_uniform_comparison();
 	test_cesaro_average();
+
+	printf("\n-----------------------\n\n");
 	return 0;
 }
 #endif
